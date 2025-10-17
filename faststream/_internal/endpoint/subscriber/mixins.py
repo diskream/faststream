@@ -59,6 +59,7 @@ class ConcurrentMixin(TasksMixin, Generic[MsgType]):
             max_buffer_size=max_workers,
         )
         self.limiter = anyio.Semaphore(max_workers)
+        self.read_limiter = anyio.Semaphore(max_workers)
 
         super().__init__(*args, **kwargs)
 

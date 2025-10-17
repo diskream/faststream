@@ -104,6 +104,28 @@ class ConcurrentPullStreamSubscriber(ConcurrentMixin["Msg"], PullStreamSubscribe
         )
         self.add_task(self._consume_pull, func_kwargs={"cb": self._put_msg})
 
+    @override
+    async def _consume_pull(
+        self,
+        cb: Callable[["Msg"], Awaitable["SendableMessage"]],
+    ) -> None:
+        """Endless task consuming messages using NATS Pull subscriber."""
+        assert self.subscription
+
+        while self.running:  # pragma: no branch
+            messages = []
+            async with self.read_limiter:
+                with suppress(TimeoutError, ConnectionClosedError):
+                    messages = await self.subscription.fetch(
+                        batch=self.pull_sub.batch_size,
+                        timeout=self.pull_sub.timeout,
+                    )
+
+                if messages:
+                    async with anyio.create_task_group() as tg:
+                        for msg in messages:
+                            tg.start_soon(cb, msg)
+
 
 class BatchPullStreamSubscriber(
     TasksMixin,
